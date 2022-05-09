@@ -1,56 +1,30 @@
-from rich.highlighter import RegexHighlighter
-from rich.console import Console
-from rich.markup import escape
-from rich.theme import Theme
-from rich.style import Style
-from rich.text import Text
-
-import sys
 import re
+import sys
 
 import yt_dlp
+from rich.console import Console
+from rich.markup import escape
+from rich.style import Style
 
 # Regexes
 STARTS_WITH_BRACKET_RE = re.compile(r"^\[(\w+)\] ?(.*)", re.DOTALL)
 STARTS_WITH_DELET_RE = re.compile(r"^delet", re.IGNORECASE)
 
-# ANSI Codes stuff
-RESET = "\033[0m"                         # Reset graphics mode
-FINISHEDG = f"\033[32mFINISHED{RESET}"    # Green finished
-FINISHEDY = f"\033[33m[FINISHED]{RESET}"  # Yellow finished
-
-# Other constants
+# Extractor names
 IE_NAMES = [i.IE_NAME for i in yt_dlp.list_extractors(None)]
 
+
 def actual_main(namespace):
-    # Load from namespace
+    # Load from namespace (config file)
     globals().update(namespace)
 
     # Rich Console
     c = Console(
         highlighter=YtDLPHighlighter(),
-        theme=ytdlp_theme,
+        theme=YTDLP_THEME,
         log_time_format=RICH_LOG_TIME_FORMAT,
         log_path=False,
     )
-
-    _log_width_space = " " * (len(c.get_datetime().strftime(RICH_LOG_TIME_FORMAT)) + 1)
-
-    # ℹ️ See docstring of yt_dlp.YoutubeDL for a description of the options
-    rich_ydl_opts = {
-        "progress_template": {
-            "download":
-                (
-                    f"{_log_width_space}[\033[32mdownload{RESET}] "  # Download
-                    f"%(progress._percent_str)s{RESET} • "  # Percent
-                    f"\033[35m%(progress.downloaded_bytes)#.2DB{RESET}/"  # Bytes downloaded
-                    f"\033[35m%(progress._total_bytes_str)s{RESET} • "  # Total bytes
-                    f"%(progress._speed_str|{FINISHEDG})s • "  # Speed
-                    f"\033[33mETA{RESET} %(progress._eta_str|{FINISHEDY})s"  # ETA
-                ),
-            "download-title": "%(info.id)s-%(progress.eta)s",
-        },
-    }
 
     class RichYoutubeDL(yt_dlp.YoutubeDL):
         def __init__(self, *args, **kwargs):
@@ -80,21 +54,19 @@ def actual_main(namespace):
 
                 # Log output
                 self.rich_console.log(
-                    Text("[")
-                    + Text(lvl, style=style)
-                    + Text("]")
-                    + " " * overflow
-                    + Text(msg),
-                    end="" if skip_eol else "\n",
+                    fr"\[[{style}]{lvl}[/]]"            # Level
+                    fr"{' ' * overflow}{escape(msg)}",  # Message
+                    end="" if skip_eol else "\n",       # End
                 )
             elif STARTS_WITH_DELET_RE.match(input_message):
+                if "delete" in RICH_STYLES:
+                    delete_style = str(RICH_STYLES["delete"])
+                else:
+                    delete_style = ""
                 self.rich_console.log(
-                    Text("[")
-                    + Text("deleting", style=RICH_STYLES["delete"])
-                    + Text("]")
-                    + " "
-                    + Text(input_message),
-                    end="" if skip_eol else "\n",
+                    fr"\[[{delete_style}]deleting[/]] "  # Level
+                    fr"{escape(input_message)}",         # Message
+                    end="" if skip_eol else "\n",        # End
                 )
             else:
                 self.rich_console.log(escape(input_message), end="" if skip_eol else "\n")
@@ -115,24 +87,15 @@ def actual_main(namespace):
                     if message in self.rich_warning_previous:
                         return
                     self.rich_warning_previous.add(message)
-                self.rich_log(f"[WARNING] {message}", skip_eol=False, quiet=False)
-
-    EXAMPLES = """\
-    List all formats: [grey23 on grey78]yt -F https://www.youtube.com/watch?v=FQUrmnwCuqs[/]
-    Download subtitles: [grey23 on grey78]yt --sub-lang en --write-sub https://www.youtube.com/watch?v=FQUrmnwCuqs[/]
-    Desc, metadata, etc: [grey23 on grey78]--write-description --write-info-json --write-annotations --write-sub --write-thumbnail[/]
-    Download audio only: [grey23 on grey78]yt -x --audio-format mp3 https://www.youtube.com/watch?v=FQUrmnwCuqs[/]
-    Custom filename output: [grey23 on grey78]yt -o "Output Filename" https://www.youtube.com/watch?v=FQUrmnwCuqs[/]
-    Download multiple videos: [grey23 on grey78]yt <url1> <url2>[/] or [grey23 on grey78]yt -a urls.txt[/]
-    Download in certain quality: [grey23 on grey78]yt -f best https://www.youtube.com/watch?v=FQUrmnwCuqs[/]
-    Available qualities:
-        * best - Select the best quality format of the given file with video and audio.
-        * worst - Select the worst quality format (both video and audio).
-        * bestvideo - Select the best quality video-only format (e.g. DASH video). Please note that it may not be available.
-        * worstvideo - Select the worst quality video-only format. May not be available.
-        * bestaudio - Select the best quality audio only-format. May not be available.
-        * worstaudio - Select the worst quality audio only-format. May not be available.
-    """
+                if "WARNING" in RICH_STYLES:
+                    warning_style = str(RICH_STYLES["WARNING"])
+                else:
+                    warning_style = ""
+                self.rich_log(
+                    fr"\[[{warning_style}]WARNING[/]] "  # Level
+                    fr"{escape(message)}",               # Message
+                    skip_eol=False, quiet=False          # End
+                )
 
     if "--examples" in sys.argv:
         c.print(EXAMPLES)
@@ -146,7 +109,7 @@ def actual_main(namespace):
     # Eg: "ydl.download", "ydl.download_with_info_file"
     parser, opts, args, old_ydl_opts = yt_dlp.parse_options()
 
-    ydl_opts = {**old_ydl_opts, **rich_ydl_opts}
+    ydl_opts = {**old_ydl_opts, **RICH_YDL_OPTS}
 
     if opts.dump_user_agent:
         ua = yt_dlp.traverse_obj(

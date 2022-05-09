@@ -1,17 +1,16 @@
 import os
-from pathlib import Path
-from .yt_dlpr import actual_main
-import yt_dlp
 import sys
+from pathlib import Path
 
 import appdirs
+import yt_dlp
+from yt_dlpr.yt_dlpr import actual_main
+
 
 def get_config():
     config_dir = os.environ.get(
-        "YT_DLPR_CONFIG_HOME",
-        appdirs.user_config_dir("yt_dlpr", "yt_dlpr")
+        "YT_DLPR_CONFIG_HOME", appdirs.user_config_dir("yt_dlpr", "yt_dlpr")
     )
-    data_dir = appdirs.user_data_dir("yt_dlpr", "yt_dlpr")
 
     Path(config_dir).mkdir(parents=True, exist_ok=True)
 
@@ -22,6 +21,11 @@ def get_config():
 
 def main():
     config_file = get_config()
+
+    args = sys.argv
+    if "--yt-dlpr-config-path" in args:
+        print(config_file)
+        return
 
     # Create config file if none exist
     if not os.path.exists(config_file):
@@ -37,6 +41,7 @@ def main():
         exec(code, namespace, namespace)
 
     run_yt_dlpr(namespace)
+
 
 def run_yt_dlpr(namespace):
     try:

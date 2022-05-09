@@ -10,7 +10,7 @@ with open("requirements.txt") as f:
 
 setup(
     name="yt_dlpr",
-    version="0.1",
+    version="1.0",
     description="Rich output of yt-dlp.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -21,7 +21,7 @@ setup(
     license="MIT license",
     classifiers=[
         "License :: OSI Approved :: MIT License",
-        "Topic :: Software Development :: Quality Assurance",
+        "Topic :: Multimedia :: Video",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
