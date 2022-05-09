@@ -9,14 +9,14 @@ with open("requirements.txt") as f:
     requires = f.read()
 
 setup(
-    name="yt-dlpr",
+    name="yt_dlpr",
     version="0.1",
     description="Rich output of yt-dlp.",
     long_description=readme,
     long_description_content_type="text/markdown",
     author="Folke",
     author_email="folke.ishii@gmail.com",
-    url="https://github.com/Secozzi/anncheck",
+    url="https://github.com/Secozzi/yt-dlpr",
     install_requires=requires,
     license="MIT license",
     classifiers=[
@@ -28,10 +28,10 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3 :: Only",
     ],
-    packages=["anncheck"],
+    packages=["yt_dlpr"],
     entry_points = {
         "console_scripts": [
-            "yt-dlpr=yt-dlpr.__init__:main"
+            "yt-dlpr=yt_dlpr.__init__:main"
         ]
     }
 )
