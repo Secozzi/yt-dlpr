@@ -2,17 +2,27 @@
 Default configuration for yt-dlpr
 """
 # Imports
+from collections import defaultdict
 from datetime import datetime
 
 from rich.highlighter import RegexHighlighter
 from rich.style import Style
 from rich.theme import Theme
 
+default = lambda: Style()
+
+####################
+# DON'T EDIT ABOVE #
+####################
+
 # Format for time log
 RICH_LOG_TIME_FORMAT: str = "%X"
 
 # Color for time logged, r;g;b
 LOG_TIME_COLOR: str = "66;94;125"
+
+# Is message occupies multiple lines, print a newline between
+SPLIT_MULTINE: bool = False
 
 
 # RegexHighlighter
@@ -33,23 +43,30 @@ YTDLP_THEME = Theme(
 )
 
 # Styles for various logs
-RICH_STYLES: dict = {
-    "download": Style(color="green"),                   # Downloading
-    "info": Style(color="cyan"),                        # General info
-    "Merger": Style(color="magenta"),                   # Merger
-    "WARNING": Style(color="bright_red", bold=True),    # Warning
-    "delete": Style(color="yellow"),                    # Deletion
-    "ExtractAudio": Style(color="purple"),              # Audio Extraction
-    "youtube": Style(color="red3"),                     # Extractor name for YouTube
-}
+RICH_STYLES: defaultdict = defaultdict(default, **{
+    "download": Style(color="green"),  # Downloading
+    "info": Style(color="cyan"),  # General info
+    "Merger": Style(color="magenta"),  # Merger
+    "WARNING": Style(color="bright_red", bold=True),  # Warning
+    "ERROR": Style(color="bright_red", italic=True),  # Error
+    "delete": Style(color="yellow"),  # Deletion
+    "ExtractAudio": Style(color="purple"),  # Audio Extraction
+    "debug": Style(italic=True),  # Debug
+    "generic": Style(),  # Generic
+    "youtube": Style(color="red3"),  # Extractor name for YouTube
+})
 
-# Style for extractor names/other levels not found in `RICH_STYLES`
+# Style for message on level
+MESSAGE_STYLES: defaultdict = defaultdict(default, **{
+    "ERROR": Style(bgcolor="black")
+})
+
+# Style for extractor names not found in `RICH_STYLES`
 EXTRACTOR_STYLE: Style = Style(underline=True)
 
 # yt-dlpr tries to pad the info-name of the log with width
 # of `MAX_LEVEL_WIDTH`
 MAX_LEVEL_WIDTH: int = 11
-
 
 ####################################################################################
 #             CONSTANTS FOR PROGRESS TEMPLATE - EDITING NOT RECOMMENDED            #
@@ -57,29 +74,28 @@ _log_width_space = " " * (len(datetime.now().strftime(RICH_LOG_TIME_FORMAT)) + 1
 RESET = "\033[0m"  # Reset graphics mode                                           #
 ####################################################################################
 
-FINISHED_SPEED = f"\033[32mFINISHED{RESET}"    # Green finished - for speed
+FINISHED_SPEED = f"\033[32mFINISHED{RESET}"  # Green finished - for speed
 FINISHED_ETA = f"\033[33m[FINISHED]{RESET} -"  # Yellow finished - for eta
-GREEN_COLOR = "\033[32m"                       # ANSI escape code for green
-YELLOW_COLOR = "\033[33m"                      # ANSI escape code for green
-MAGENTA_COLOR = "\033[35m"                     # ANSI escape code for green
+GREEN_COLOR = "\033[32m"  # ANSI escape code for green
+YELLOW_COLOR = "\033[33m"  # ANSI escape code for green
+MAGENTA_COLOR = "\033[35m"  # ANSI escape code for green
 
 # String for progress bar - check https://github.com/yt-dlp/yt-dlp#output-template for more info
 RICH_YDL_OPTS = {
     "progress_template": {
         "download":
             (
-                f"{_log_width_space}[{GREEN_COLOR}download{RESET}] "         # Download - prepended by log width to align
-                f"%(progress._percent_str)s{RESET} • "                       # Percent
+                f"{_log_width_space}[{GREEN_COLOR}download{RESET}] "  # Download - prepended by log width to align
+                f"%(progress._percent_str)s{RESET} • "  # Percent
                 f"{MAGENTA_COLOR}%(progress.downloaded_bytes)#.2DB{RESET}/"  # Bytes downloaded
-                f"{MAGENTA_COLOR}%(progress._total_bytes_str)s{RESET} • "    # Total bytes
-                f"%(progress._speed_str|{FINISHED_SPEED})s • "               # Speed
+                f"{MAGENTA_COLOR}%(progress._total_bytes_str)s{RESET} • "  # Total bytes
+                f"%(progress._speed_str|{FINISHED_SPEED})s • "  # Speed
                 f"{YELLOW_COLOR}ETA{RESET} %(progress._eta_str|{FINISHED_ETA})s "  # ETA
-                f"%(progress._elapsed_str|)s"                                # Time elapsed - when download is finished
+                f"%(progress._elapsed_str|)s"  # Time elapsed - when download is finished
             ),
         "download-title": "%(info.id)s-%(progress.eta)s",
     },
 }
-
 
 # Examples printed when using --examples
 EXAMPLES = """\

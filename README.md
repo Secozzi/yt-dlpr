@@ -24,3 +24,17 @@ Extracting audio using yt-dlp:
 Extracting audio using yt-dlpr:
 
 [![asciicast](https://asciinema.org/a/493212.svg)](https://asciinema.org/a/493212)
+
+## Changelog
+
+### [1.1] - 2022-05-11
+
+#### Added
+
+- Added SPLIT_MULTINE option
+- Added MESSAGE_STYLES dict, styling entire message
+- Added support for debug, info, and error
+
+### Fixed
+
+- Fixed styling for warning

@@ -10,7 +10,7 @@ with open("requirements.txt") as f:
 
 setup(
     name="yt_dlpr",
-    version="1.0",
+    version="1.1",
     description="Rich output of yt-dlp.",
     long_description=readme,
     long_description_content_type="text/markdown",
