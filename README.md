@@ -33,8 +33,8 @@ Extracting audio using yt-dlpr:
 
 - Added SPLIT_MULTINE option
 - Added MESSAGE_STYLES dict, styling entire message
-- Added support for debug, info, and error
 
 ### Fixed
 
 - Fixed styling for warning
+- Tables no longer broken

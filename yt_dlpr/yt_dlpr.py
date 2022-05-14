@@ -1,150 +1,270 @@
+import os
 import re
 import sys
+from pathlib import Path
+from typing import Callable, Union
 
-import yt_dlp
+import appdirs
 from rich.console import Console
 from rich.markup import escape
 from rich.style import Style
 
+import yt_dlp
+
 # Regexes
 STARTS_WITH_BRACKET_RE = re.compile(r"^\[(\w+)\] ?(.*)", re.DOTALL)
 STARTS_WITH_DELET_RE = re.compile(r"^delet", re.IGNORECASE)
-ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
 # Extractor names
 IE_NAMES = [i.IE_NAME for i in yt_dlp.list_extractors(None)]
 
 
-def actual_main(namespace):
-    # Load from namespace (config file)
-    globals().update(namespace)
+class dotdict(dict):
+    __getattr__ = dict.get
 
-    # Rich Console
-    c = Console(
-        highlighter=YtDLPHighlighter(),
-        theme=YTDLP_THEME,
-        log_time_format=RICH_LOG_TIME_FORMAT,
-        log_path=False,
+
+def get_config():
+    config_dir = os.environ.get(
+        "YT_DLPR_CONFIG_HOME", appdirs.user_config_dir("yt_dlpr", "yt_dlpr")
     )
 
-    class RichYoutubeDL(yt_dlp.YoutubeDL):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
+    Path(config_dir).mkdir(parents=True, exist_ok=True)
 
-            self.rich_console = c
-            self.rich_warning_previous = set()
-            self.params["logger"] = self
+    return os.path.join(config_dir, "config.py")
 
-        def rich_log(self, input_message, skip_eol, quiet, message_style=None):
-            if quiet:
+
+config_file = get_config()
+
+
+# Create config file if none exist
+if not os.path.exists(config_file):
+    default_file_path = Path(__file__).parent / "default_config.py"
+    with open(config_file, "w+", encoding="utf-8") as cf:
+        with open(default_file_path, "r+", encoding="utf-8") as df:
+            cf.write(df.read())
+
+
+# Read config file
+with open(config_file, "r+", encoding="utf-8") as f:
+    n = dotdict()
+    code = compile(f.read(), config_file, "exec")
+    exec(code, n, n)
+
+
+class RichYoutubeDL(yt_dlp.YoutubeDL):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.rich_console: Console = Console(
+            highlighter=n.YtDLPHighlighter(),
+            theme=n.YTDLP_THEME,
+            log_time_format=n.RICH_LOG_TIME_FORMAT,
+            log_path=False,
+        )
+        self.rich_warning_previous: set = set()
+
+    def rich_log(
+        self,
+        message: str,
+        skip_eol: Union[bool, None],
+        quiet: Union[bool, None],
+        message_style: Union[Style, None] = None,
+    ) -> None:
+        if quiet:
+            return
+        if m := STARTS_WITH_BRACKET_RE.match(message):
+            lvl, msg = m.group(1), m.group(2)
+
+            # Attempt to pad
+            if len(lvl) > (n.MAX_LEVEL_WIDTH - 2):
+                overflow = 1
+            else:
+                overflow = n.MAX_LEVEL_WIDTH - len(lvl) - 2
+
+            if lvl in n.RICH_STYLES:
+                style = n.RICH_STYLES[lvl]
+            elif lvl in IE_NAMES:
+                style = n.EXTRACTOR_STYLE
+            else:
+                style = Style()
+
+            # Log output
+            message = (
+                rf"\[[{style}]{lvl}[/]]"
+                rf"{' ' * overflow}{escape(msg)}"
+            )
+        elif STARTS_WITH_DELET_RE.match(message):
+            delete_style = n.RICH_STYLES["delete"]
+            message = (
+                rf"\[[{delete_style}]deleting[/]] "
+                rf"{escape(message)}"  # Message
+            )
+        else:
+            message = escape(message)
+
+        self.rich_console.log(
+            message, end="" if skip_eol else "\n", style=message_style
+        )
+        if n.SPLIT_MULTINE and (
+            len(message + n._log_width_space) > self.rich_console.width
+        ):
+            self.rich_console.print("")
+
+    def to_screen(
+        self,
+        message: str,
+        skip_eol: Union[bool, None] = False,
+        quiet: Union[bool, None] = None,
+    ) -> None:
+        self.rich_log(message, skip_eol=skip_eol, quiet=quiet)
+
+    def to_stdout(
+        self,
+        message: str,
+        skip_eol: Union[bool, None] = False,
+        quiet: Union[bool, None] = None,
+    ) -> None:
+        self.rich_log(message, skip_eol=skip_eol, quiet=quiet)
+
+    def report_warning(self, message: str, only_once: bool = False) -> None:
+        if self.params.get("no_warnings"):
+            return
+        if only_once:
+            if message in self.rich_warning_previous:
                 return
-            if m := STARTS_WITH_BRACKET_RE.match(input_message):
-                lvl, msg = m.group(1), m.group(2)
+            self.rich_warning_previous.add(message)
+        warning_style = n.RICH_STYLES["WARNING"]
+        self.rich_console.log(
+            rf"\[[{warning_style}]WARNING[/]] "
+            rf"{escape(message)}",
+        )
 
-                # Try to pad
-                if len(lvl) > (MAX_LEVEL_WIDTH - 2):
-                    overflow = 1
-                else:
-                    overflow = MAX_LEVEL_WIDTH - len(lvl) - 2
+    def deprecation_warning(self, message: str) -> None:
+        self.rich_log(
+            f"[DeprecationWarning] {message}",
+            skip_eol=False,
+            quiet=False,
+        )
 
-                if lvl in IE_NAMES:
-                    style = EXTRACTOR_STYLE
-                else:
-                    style = RICH_STYLES[lvl]
+    def report_error(self, message: str, *args, **kwargs) -> None:
+        self.rich_log(
+            f"[ERROR] {message}",
+            skip_eol=False,
+            quiet=False,
+            message_style=n.MESSAGE_STYLES["ERROR"],
+        )
 
-                # Log output
-                message = (
-                    fr"\[[{style}]{lvl}[/]]"            # Level
-                    fr"{' ' * overflow}{escape(msg)}"   # Message
-                )
-                self.rich_console.log(
-                    message,                            # Message
-                    end="" if skip_eol else "\n",       # End
-                    style=message_style,                # Style
-                )
-                if SPLIT_MULTINE and (len(message + _log_width_space) > self.rich_console.width):
-                    print("")
-            elif STARTS_WITH_DELET_RE.match(input_message):
-                if "delete" in RICH_STYLES:
-                    delete_style = str(RICH_STYLES["delete"])
-                else:
-                    delete_style = ""
-                message = (
-                    fr"\[[{delete_style}]deleting[/]] "  # Level
-                    fr"{escape(input_message)}",         # Message
-                )
-                self.rich_console.log(
-                    message,                             # Message
-                    end="" if skip_eol else "\n",        # End
-                    style=message_style,                 # Style
-                )
-                if SPLIT_MULTINE and (len(message + _log_width_space) > self.rich_console.width):
-                    print("")
-            else:
-                message = escape(input_message)
-                self.rich_console.log(message, end="" if skip_eol else "\n")
-                if SPLIT_MULTINE and (len(message + _log_width_space) > self.rich_console.width):
-                    print("")
-
-        def to_screen(self, message, skip_eol=False, quiet=None):
-            self.rich_log(message, skip_eol, quiet)
-
-        def to_stdout(self, message, skip_eol=False, quiet=False):
-            self.rich_log(message, skip_eol, quiet)
-
-        def debug(self, message):
-            if message.startswith("[debug] "):
-                self.rich_log(message, skip_eol=False, quiet=False)
-            else:
-                self.rich_log(f"[debug] {message}", skip_eol=False, quiet=False)
-
-        def error(self, message):
+    def report_file_already_downloaded(self, file_name: str) -> None:
+        try:
             self.rich_log(
-                f"[ERROR] {ANSI_ESCAPE.sub('', message)}",
+                f'[download] "{file_name}" has already been downloaded',
                 skip_eol=False,
                 quiet=False,
-                message_style=MESSAGE_STYLES["ERROR"]
+            )
+        except UnicodeEncodeError:
+            self.rich_log(
+                f"[download] The file has already been downloaded",
+                skip_eol=False,
+                quiet=False,
             )
 
-        def info(self, message):
-            self.rich_log(f"[INFO] {message}", skip_eol=False, quiet=False)
+    def report_file_delete(self, file_name: str) -> None:
+        try:
+            self.rich_log(
+                f'[delete] Deleting existing file "{file_name}"',
+                skip_eol=False,
+                quiet=False,
+            )
+        except UnicodeEncodeError:
+            self.rich_log(
+                f"[delete] Deleting existing file",
+                skip_eol=False,
+                quiet=False,
+            )
 
-        def warning(self, message):
-            self.rich_log(f"[WARNING] {message}", skip_eol=False, quiet=False)
+    def __old_to_screen(
+        self,
+        message: str,
+        skip_eol: Union[bool, None] = False,
+        quiet: Union[bool, None] = None,
+    ):
+        """Print message to screen if not in quiet mode"""
+        if self.params.get("logger"):
+            self.params["logger"].debug(message)
+            return
+        if (
+            self.params.get("quiet") if quiet is None else quiet
+        ) and not self.params.get("verbose"):
+            return
+        self._write_string(
+            "%s%s" % (self._bidi_workaround(message), ("" if skip_eol else "\n")),
+            self._out_files["screen"],
+        )
 
-        def report_warning(self, message, only_once=False):
-            if self.params.get("logger") is not None:
-                self.params["logger"].warning(message)
-            else:
-                if self.params.get("no_warnings"):
-                    return
-                if only_once:
-                    if message in self.rich_warning_previous:
-                        return
-                    self.rich_warning_previous.add(message)
-                if "WARNING" in RICH_STYLES:
-                    warning_style = str(RICH_STYLES["WARNING"])
-                else:
-                    warning_style = ""
-                self.rich_console.log(
-                    fr"\[[{warning_style}]WARNING[/]] "  # Level
-                    fr"{escape(message)}"                # Message
-                )
+    def __old_to_stdout(
+        self,
+        message: str,
+        skip_eol: Union[bool, None] = False,
+        quiet: Union[bool, None] = None,
+    ):
+        """Print message to stdout"""
+        if quiet is not None:
+            self.deprecation_warning(
+                '"YoutubeDL.to_stdout" no longer accepts the argument quiet. Use "YoutubeDL.to_screen" instead'
+            )
+        self._write_string(
+            "%s%s" % (self._bidi_workaround(message), ("" if skip_eol else "\n")),
+            self._out_files["print"],
+        )
 
-    if "--examples" in sys.argv:
-        c.print(EXAMPLES)
+    def list_formats(self, info_dict: dict) -> None:
+        self.__list_table(
+            info_dict["id"], "formats", self.render_formats_table, info_dict
+        )
+
+    def list_thumbnails(self, info_dict: dict) -> None:
+        self.__list_table(
+            info_dict["id"], "thumbnails", self.render_thumbnails_table, info_dict
+        )
+
+    def list_subtitles(
+        self, video_id: str, subtitles: dict, name: str = "subtitles"
+    ) -> None:
+        self.__list_table(
+            video_id, name, self.render_subtitles_table, video_id, subtitles
+        )
+
+    def __list_table(self, video_id: str, name: str, func: Callable, *args) -> None:
+        table = func(*args)
+        if not table:
+            self.rich_log(
+                f"[info] {video_id} has no {name}", skip_eol=False, quiet=False
+            )
+            return
+
+        self.rich_log(
+            f"[info] Available {name} for {video_id}:", skip_eol=False, quiet=False
+        )
+        self.__old_to_stdout(table)
+
+
+def _main() -> None:
+    # Check for yt-dlpr options
+    argv = sys.argv
+    if "--yt-dlpr-config-path" in argv:
+        yt_dlp.write_string(f"{config_file}\n", out=sys.stdout)
         sys.exit(0)
 
-    yt_dlp.workaround_optparse_bug9161()
+    if "--examples" in argv:
+        RichYoutubeDL().rich_console.print(n.EXAMPLES)
+        sys.exit(0)
 
-    yt_dlp.setproctitle('yt-dlp')
+    # yt-dlp._real_main()
+    yt_dlp.setproctitle("yt-dlp")
 
-    # ℹ️ See the public functions in yt_dlp.YoutubeDL for for other available functions.
-    # Eg: "ydl.download", "ydl.download_with_info_file"
-    parser, opts, args, old_ydl_opts = yt_dlp.parse_options()
+    parser, opts, all_urls, ydl_opts = yt_dlp.parse_options()
 
-    ydl_opts = {"logger": RichYoutubeDL(), **old_ydl_opts, **RICH_YDL_OPTS}
-
+    # Dump user agent
     if opts.dump_user_agent:
         ua = yt_dlp.traverse_obj(
             opts.headers,
@@ -152,10 +272,19 @@ def actual_main(namespace):
             casesense=False,
             default=yt_dlp.std_headers["User-Agent"],
         )
-        c.log(ua)
+        yt_dlp.write_string(f"{ua}\n", out=sys.stdout)
+        sys.exit(0)
+
+    if yt_dlp.print_extractor_information(opts, all_urls):
+        sys.exit(0)
+
+    ydl_opts = {
+        **ydl_opts,
+        **n.RICH_YDL_OPTS,
+    }
 
     with RichYoutubeDL(ydl_opts) as ydl:
-        actual_use = args or opts.load_info_filename
+        actual_use = all_urls or opts.load_info_filename
 
         # Remove cache dir
         if opts.rm_cachedir:
@@ -174,7 +303,7 @@ def actual_main(namespace):
             if opts.update_self or opts.rm_cachedir:
                 sys.exit()
 
-            ydl.warn_if_short_id(sys.argv[1:] if sys.argv is None else sys.argv)
+            ydl.warn_if_short_id(sys.argv[1:] if argv is None else argv)
             parser.error(
                 "You must provide at least one URL.\n"
                 "Type yt-dlp --help to see a list of all options."
@@ -186,7 +315,7 @@ def actual_main(namespace):
                     yt_dlp.expand_path(opts.load_info_filename)
                 )
             else:
-                retcode = ydl.download(args)
+                retcode = ydl.download(all_urls)
         except yt_dlp.DownloadCancelled:
             ydl.to_screen("Aborting remaining downloads")
             retcode = 101

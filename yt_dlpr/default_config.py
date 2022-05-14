@@ -74,11 +74,11 @@ _log_width_space = " " * (len(datetime.now().strftime(RICH_LOG_TIME_FORMAT)) + 1
 RESET = "\033[0m"  # Reset graphics mode                                           #
 ####################################################################################
 
-FINISHED_SPEED = f"\033[32mFINISHED{RESET}"  # Green finished - for speed
-FINISHED_ETA = f"\033[33m[FINISHED]{RESET} -"  # Yellow finished - for eta
 GREEN_COLOR = "\033[32m"  # ANSI escape code for green
 YELLOW_COLOR = "\033[33m"  # ANSI escape code for green
 MAGENTA_COLOR = "\033[35m"  # ANSI escape code for green
+FINISHED_SPEED = f"{GREEN_COLOR}FINISHED{RESET}"  # Green finished - for speed
+FINISHED_ETA = f"{YELLOW_COLOR}[FINISHED]{RESET} -"  # Yellow finished - for eta
 
 # String for progress bar - check https://github.com/yt-dlp/yt-dlp#output-template for more info
 RICH_YDL_OPTS = {
