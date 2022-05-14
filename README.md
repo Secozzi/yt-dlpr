@@ -27,6 +27,12 @@ Extracting audio using yt-dlpr:
 
 ## Changelog
 
+### [1.2] - 2022-05-14
+
+#### Added
+
+- Added support for `--list-formats`, `--list-thumnails`, and `--list-subs`
+
 ### [1.1] - 2022-05-11
 
 #### Added

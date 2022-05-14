@@ -1,13 +1,13 @@
-import os
 import re
 import sys
-from pathlib import Path
 from typing import Callable, Union
 
-import appdirs
 from rich.console import Console
 from rich.markup import escape
 from rich.style import Style
+from rich.table import Table
+from rich import box
+from .utils import *
 
 import yt_dlp
 
@@ -17,20 +17,6 @@ STARTS_WITH_DELET_RE = re.compile(r"^delet", re.IGNORECASE)
 
 # Extractor names
 IE_NAMES = [i.IE_NAME for i in yt_dlp.list_extractors(None)]
-
-
-class dotdict(dict):
-    __getattr__ = dict.get
-
-
-def get_config():
-    config_dir = os.environ.get(
-        "YT_DLPR_CONFIG_HOME", appdirs.user_config_dir("yt_dlpr", "yt_dlpr")
-    )
-
-    Path(config_dir).mkdir(parents=True, exist_ok=True)
-
-    return os.path.join(config_dir, "config.py")
 
 
 config_file = get_config()
@@ -218,21 +204,151 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
         )
 
     def list_formats(self, info_dict: dict) -> None:
-        self.__list_table(
-            info_dict["id"], "formats", self.render_formats_table, info_dict
+        if not info_dict.get('formats') and not info_dict.get('url'):
+            self.rich_log(
+                f"[info] {info_dict['id']} has no formats",
+                skip_eol=False, quiet=False,
+            )
+            return
+
+        table = Table(
+            box=box.SIMPLE_HEAD,
+            show_lines=False,
+            pad_edge=False,
+            show_edge=False,
+            padding=(0, 0),
         )
+        table.add_column("[yellow]ID[/]", style=Style(color="green"))
+        table.add_column("[yellow]EXT[/]")
+        table.add_column("[yellow]RESOLUTION[/]")
+        table.add_column("[yellow]FPS[/]", justify="right")
+        table.add_column("[blue]│[/]", style=Style(color="blue"))
+        table.add_column("[yellow]FILESIZE[/]", justify="right")
+        table.add_column("[yellow]TBR[/]", justify="right")
+        table.add_column("[yellow]PROTO[/]")
+        table.add_column("[blue]│[/]", style=Style(color="blue"))
+        table.add_column("[yellow]VCODEC[/]")
+        table.add_column("[yellow]VBR[/]", justify="right")
+        table.add_column("[yellow]ACODEC[/]")
+        table.add_column("[yellow]ABR[/]", justify="right")
+        table.add_column("[yellow]ASR[/]", justify="right")
+        table.add_column("[yellow]MORE INFO[/]")
+
+        formats = info_dict.get('formats', [info_dict])
+        for i, f in enumerate(formats):
+            table.add_row(
+                format_field(f, "format_id"),
+                format_field(f, "ext"),
+                format_field(f, func=self.format_resolution, ignore=("audio only", "images")),
+                format_field(f, "fps"),
+                "│",
+                format_field(
+                    f, "filesize", func=format_bytes
+                ) + format_field(
+                    f, "filesize_approx", "~ %s", func=format_bytes
+                ),
+                format_field(f, "tbr", "%dk"),
+                shorten_protocol_name(f.get("protocol", "")),
+                "│",
+                format_field(f, 'vcodec', default='unknown').replace(
+                    'none', 'images' if f.get('acodec') == 'none'
+                            else "[dim]audio only[/]"),
+                format_field(f, "vbr", "%dk"),
+                format_field(f, 'acodec', default='unknown').replace(
+                    'none', '' if f.get('vcodec') == 'none'
+                    else "[dim]video only[/]"),
+                format_field(f, "abr", "%dk"),
+                format_field(f, "asr", "%dHz"),
+                join_nonempty(
+                    '[light red]UNSUPPORTED[/]' if f.get('ext') in ('f4f', 'f4m') else None,
+                    format_field(f, 'language', '[%s]'),
+                    join_nonempty(format_field(f, 'format_note'),
+                                  format_field(f, 'container', ignore=(None, f.get('ext'))),
+                                  delim=', '),
+                    delim=' '),
+                style=n.TABLE_ALTERNATE_STYLE if i % 2 == 1 else Style(),
+            )
+        self.rich_log(
+            f"[info] Available formats for {info_dict['id']}:",
+            skip_eol=False, quiet=False
+        )
+        self.rich_console.log(table)
 
     def list_thumbnails(self, info_dict: dict) -> None:
-        self.__list_table(
-            info_dict["id"], "thumbnails", self.render_thumbnails_table, info_dict
+        thumbnails = list(info_dict.get("thumbnails") or [])
+        if not thumbnails:
+            self.rich_log(
+                f"[info] {info_dict['id']} has no thumbnails",
+                skip_eol=False, quiet=False,
+            )
+            return
+
+        table = Table(
+            box=None,
+            show_lines=False,
+            pad_edge=False,
+            show_edge=False,
+            padding=(0, 1),
         )
+        table.add_column("[yellow]ID[/]")
+        table.add_column("[yellow]Width[/]")
+        table.add_column("[yellow]Height[/]")
+        table.add_column("[yellow]URL[/]")
+
+        for i, t in enumerate(thumbnails):
+            url = t["url"]
+            table.add_row(
+                str(t.get("id")),
+                str(t.get("width", "unknown")),
+                str(t.get("height", "unknown")),
+                f"[link={url}]{url}[/]",
+                style=n.TABLE_ALTERNATE_STYLE if i % 2 == 1 else Style(),
+            )
+        self.rich_log(
+            f"[info] Available thumbnails for {info_dict['id']}:",
+            skip_eol=False, quiet=False,
+        )
+        self.rich_console.log(table)
 
     def list_subtitles(
         self, video_id: str, subtitles: dict, name: str = "subtitles"
     ) -> None:
-        self.__list_table(
-            video_id, name, self.render_subtitles_table, video_id, subtitles
+        def _row(lang, formats):
+            exts, names = zip(*((f['ext'], f.get('name') or 'unknown') for f in reversed(formats)))
+            if len(set(names)) == 1:
+                names = [] if names[0] == 'unknown' else names[:1]
+            return [lang, ', '.join(names), ', '.join(exts)]
+
+        if not subtitles:
+            self.rich_log(
+                f"[info] {video_id} has no {name}",
+                skip_eol=False, quiet=False,
+            )
+            return
+
+        table = Table(
+            box=None,
+            show_lines=False,
+            pad_edge=False,
+            show_edge=False,
+            padding=(0, 1),
         )
+        table.add_column("[yellow]Language[/]")
+        table.add_column("[yellow]Name[/]")
+        table.add_column("[yellow]Formats[/]")
+        for i, (lang, formats) in enumerate(subtitles.items()):
+            table.add_row(
+                *_row(lang, formats),
+                style=n.TABLE_ALTERNATE_STYLE if i % 2 == 1 else Style(),
+            )
+
+        self.rich_log(
+            f"[info] Available {name} for {video_id}:",
+            skip_eol=False, quiet=False,
+        )
+        self.rich_console.log(table)
+
+
 
     def __list_table(self, video_id: str, name: str, func: Callable, *args) -> None:
         table = func(*args)

@@ -97,6 +97,10 @@ RICH_YDL_OPTS = {
     },
 }
 
+# Style for alternating row on tables.
+# Set to `Style()` to remove any styling
+TABLE_ALTERNATE_STYLE: Style = Style(bgcolor="grey23")
+
 # Examples printed when using --examples
 EXAMPLES = """\
 List all formats: [grey23 on grey78]yt -F https://www.youtube.com/watch?v=FQUrmnwCuqs[/]
