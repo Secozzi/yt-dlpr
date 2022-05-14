@@ -43,23 +43,29 @@ YTDLP_THEME = Theme(
 )
 
 # Styles for various logs
-RICH_STYLES: defaultdict = defaultdict(default, **{
-    "download": Style(color="green"),  # Downloading
-    "info": Style(color="cyan"),  # General info
-    "Merger": Style(color="magenta"),  # Merger
-    "WARNING": Style(color="bright_red", bold=True),  # Warning
-    "ERROR": Style(color="bright_red", italic=True),  # Error
-    "delete": Style(color="yellow"),  # Deletion
-    "ExtractAudio": Style(color="purple"),  # Audio Extraction
-    "debug": Style(italic=True),  # Debug
-    "generic": Style(),  # Generic
-    "youtube": Style(color="red3"),  # Extractor name for YouTube
-})
+RICH_STYLES: defaultdict = defaultdict(
+    default,
+    **{
+        "download": Style(color="green"),  # Downloading
+        "info": Style(color="cyan"),  # General info
+        "Merger": Style(color="magenta"),  # Merger
+        "WARNING": Style(color="bright_red", bold=True),  # Warning
+        "ERROR": Style(color="bright_red", italic=True),  # Error
+        "delete": Style(color="yellow"),  # Deletion
+        "ExtractAudio": Style(color="purple"),  # Audio Extraction
+        "debug": Style(italic=True),  # Debug
+        "generic": Style(),  # Generic
+        "youtube": Style(color="red3"),  # Extractor name for YouTube
+    },
+)
 
 # Style for message on level
-MESSAGE_STYLES: defaultdict = defaultdict(default, **{
-    "ERROR": Style(bgcolor="black")
-})
+MESSAGE_STYLES: defaultdict = defaultdict(
+    default,
+    **{
+        "ERROR": Style(bgcolor="black"),
+    },
+)
 
 # Style for extractor names not found in `RICH_STYLES`
 EXTRACTOR_STYLE: Style = Style(underline=True)
@@ -83,16 +89,15 @@ FINISHED_ETA = f"{YELLOW_COLOR}[FINISHED]{RESET} -"  # Yellow finished - for eta
 # String for progress bar - check https://github.com/yt-dlp/yt-dlp#output-template for more info
 RICH_YDL_OPTS = {
     "progress_template": {
-        "download":
-            (
-                f"{_log_width_space}[{GREEN_COLOR}download{RESET}] "  # Download - prepended by log width to align
-                f"%(progress._percent_str)s{RESET} • "  # Percent
-                f"{MAGENTA_COLOR}%(progress.downloaded_bytes)#.2DB{RESET}/"  # Bytes downloaded
-                f"{MAGENTA_COLOR}%(progress._total_bytes_str)s{RESET} • "  # Total bytes
-                f"%(progress._speed_str|{FINISHED_SPEED})s • "  # Speed
-                f"{YELLOW_COLOR}ETA{RESET} %(progress._eta_str|{FINISHED_ETA})s "  # ETA
-                f"%(progress._elapsed_str|)s"  # Time elapsed - when download is finished
-            ),
+        "download": (
+            f"{_log_width_space}[{GREEN_COLOR}download{RESET}] "  # Download - prepended by log width to align
+            f"%(progress._percent_str)s{RESET} • "  # Percent
+            f"{MAGENTA_COLOR}%(progress.downloaded_bytes)#.2DB{RESET}/"  # Bytes downloaded
+            f"{MAGENTA_COLOR}%(progress._total_bytes_str)s{RESET} • "  # Total bytes
+            f"%(progress._speed_str|{FINISHED_SPEED})s • "  # Speed
+            f"{YELLOW_COLOR}ETA{RESET} %(progress._eta_str|{FINISHED_ETA})s "  # ETA
+            f"%(progress._elapsed_str|)s"  # Time elapsed - when download is finished
+        ),
         "download-title": "%(info.id)s-%(progress.eta)s",
     },
 }

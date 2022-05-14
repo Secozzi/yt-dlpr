@@ -1,15 +1,20 @@
+import os
 import re
 import sys
-from typing import Callable, Union
+from pathlib import Path
+from typing import Union
 
+from rich import box
 from rich.console import Console
 from rich.markup import escape
 from rich.style import Style
 from rich.table import Table
-from rich import box
-from .utils import *
 
 import yt_dlp
+from yt_dlpr.utils import (
+    dotdict, shorten_protocol_name, format_field,
+    join_nonempty, get_config, format_bytes,
+)
 
 # Regexes
 STARTS_WITH_BRACKET_RE = re.compile(r"^\[(\w+)\] ?(.*)", re.DOTALL)
@@ -149,7 +154,7 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
             )
         except UnicodeEncodeError:
             self.rich_log(
-                f"[download] The file has already been downloaded",
+                "[download] The file has already been downloaded",
                 skip_eol=False,
                 quiet=False,
             )
@@ -163,51 +168,17 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
             )
         except UnicodeEncodeError:
             self.rich_log(
-                f"[delete] Deleting existing file",
+                "[delete] Deleting existing file",
                 skip_eol=False,
                 quiet=False,
             )
 
-    def __old_to_screen(
-        self,
-        message: str,
-        skip_eol: Union[bool, None] = False,
-        quiet: Union[bool, None] = None,
-    ):
-        """Print message to screen if not in quiet mode"""
-        if self.params.get("logger"):
-            self.params["logger"].debug(message)
-            return
-        if (
-            self.params.get("quiet") if quiet is None else quiet
-        ) and not self.params.get("verbose"):
-            return
-        self._write_string(
-            "%s%s" % (self._bidi_workaround(message), ("" if skip_eol else "\n")),
-            self._out_files["screen"],
-        )
-
-    def __old_to_stdout(
-        self,
-        message: str,
-        skip_eol: Union[bool, None] = False,
-        quiet: Union[bool, None] = None,
-    ):
-        """Print message to stdout"""
-        if quiet is not None:
-            self.deprecation_warning(
-                '"YoutubeDL.to_stdout" no longer accepts the argument quiet. Use "YoutubeDL.to_screen" instead'
-            )
-        self._write_string(
-            "%s%s" % (self._bidi_workaround(message), ("" if skip_eol else "\n")),
-            self._out_files["print"],
-        )
-
     def list_formats(self, info_dict: dict) -> None:
-        if not info_dict.get('formats') and not info_dict.get('url'):
+        if not info_dict.get("formats") and not info_dict.get("url"):
             self.rich_log(
                 f"[info] {info_dict['id']} has no formats",
-                skip_eol=False, quiet=False,
+                skip_eol=False,
+                quiet=False,
             )
             return
 
@@ -234,43 +205,49 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
         table.add_column("[yellow]ASR[/]", justify="right")
         table.add_column("[yellow]MORE INFO[/]")
 
-        formats = info_dict.get('formats', [info_dict])
+        formats = info_dict.get("formats", [info_dict])
         for i, f in enumerate(formats):
             table.add_row(
                 format_field(f, "format_id"),
                 format_field(f, "ext"),
-                format_field(f, func=self.format_resolution, ignore=("audio only", "images")),
+                format_field(
+                    f, func=self.format_resolution, ignore=("audio only", "images")
+                ),
                 format_field(f, "fps"),
                 "│",
-                format_field(
-                    f, "filesize", func=format_bytes
-                ) + format_field(
-                    f, "filesize_approx", "~ %s", func=format_bytes
-                ),
+                format_field(f, "filesize", func=format_bytes)
+                + format_field(f, "filesize_approx", "~ %s", func=format_bytes),
                 format_field(f, "tbr", "%dk"),
                 shorten_protocol_name(f.get("protocol", "")),
                 "│",
-                format_field(f, 'vcodec', default='unknown').replace(
-                    'none', 'images' if f.get('acodec') == 'none'
-                            else "[dim]audio only[/]"),
+                format_field(f, "vcodec", default="unknown").replace(
+                    "none",
+                    "images" if f.get("acodec") == "none" else "[dim]audio only[/]",
+                ),
                 format_field(f, "vbr", "%dk"),
-                format_field(f, 'acodec', default='unknown').replace(
-                    'none', '' if f.get('vcodec') == 'none'
-                    else "[dim]video only[/]"),
+                format_field(f, "acodec", default="unknown").replace(
+                    "none", "" if f.get("vcodec") == "none" else "[dim]video only[/]"
+                ),
                 format_field(f, "abr", "%dk"),
                 format_field(f, "asr", "%dHz"),
                 join_nonempty(
-                    '[light red]UNSUPPORTED[/]' if f.get('ext') in ('f4f', 'f4m') else None,
-                    format_field(f, 'language', '[%s]'),
-                    join_nonempty(format_field(f, 'format_note'),
-                                  format_field(f, 'container', ignore=(None, f.get('ext'))),
-                                  delim=', '),
-                    delim=' '),
+                    "[light red]UNSUPPORTED[/]"
+                    if f.get("ext") in ("f4f", "f4m")
+                    else None,
+                    format_field(f, "language", "[%s]"),
+                    join_nonempty(
+                        format_field(f, "format_note"),
+                        format_field(f, "container", ignore=(None, f.get("ext"))),
+                        delim=", ",
+                    ),
+                    delim=" ",
+                ),
                 style=n.TABLE_ALTERNATE_STYLE if i % 2 == 1 else Style(),
             )
         self.rich_log(
             f"[info] Available formats for {info_dict['id']}:",
-            skip_eol=False, quiet=False
+            skip_eol=False,
+            quiet=False,
         )
         self.rich_console.log(table)
 
@@ -279,7 +256,8 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
         if not thumbnails:
             self.rich_log(
                 f"[info] {info_dict['id']} has no thumbnails",
-                skip_eol=False, quiet=False,
+                skip_eol=False,
+                quiet=False,
             )
             return
 
@@ -306,23 +284,27 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
             )
         self.rich_log(
             f"[info] Available thumbnails for {info_dict['id']}:",
-            skip_eol=False, quiet=False,
+            skip_eol=False,
+            quiet=False,
         )
         self.rich_console.log(table)
 
     def list_subtitles(
         self, video_id: str, subtitles: dict, name: str = "subtitles"
     ) -> None:
-        def _row(lang, formats):
-            exts, names = zip(*((f['ext'], f.get('name') or 'unknown') for f in reversed(formats)))
+        def _row(lang: str, formats: list) -> list:
+            exts, names = zip(
+                *((f["ext"], f.get("name") or "unknown") for f in reversed(formats))
+            )
             if len(set(names)) == 1:
-                names = [] if names[0] == 'unknown' else names[:1]
-            return [lang, ', '.join(names), ', '.join(exts)]
+                names = [] if names[0] == "unknown" else names[:1]
+            return [lang, ", ".join(names), ", ".join(exts)]
 
         if not subtitles:
             self.rich_log(
                 f"[info] {video_id} has no {name}",
-                skip_eol=False, quiet=False,
+                skip_eol=False,
+                quiet=False,
             )
             return
 
@@ -344,24 +326,10 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
 
         self.rich_log(
             f"[info] Available {name} for {video_id}:",
-            skip_eol=False, quiet=False,
+            skip_eol=False,
+            quiet=False,
         )
         self.rich_console.log(table)
-
-
-
-    def __list_table(self, video_id: str, name: str, func: Callable, *args) -> None:
-        table = func(*args)
-        if not table:
-            self.rich_log(
-                f"[info] {video_id} has no {name}", skip_eol=False, quiet=False
-            )
-            return
-
-        self.rich_log(
-            f"[info] Available {name} for {video_id}:", skip_eol=False, quiet=False
-        )
-        self.__old_to_stdout(table)
 
 
 def _main() -> None:
