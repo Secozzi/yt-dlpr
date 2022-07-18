@@ -10,7 +10,7 @@ with open("requirements.txt") as f:
 
 setup(
     name="yt_dlpr",
-    version="1.2",
+    version="1.3",
     description="Rich output of yt-dlp.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -31,7 +31,7 @@ setup(
     packages=["yt_dlpr"],
     entry_points = {
         "console_scripts": [
-            "yt-dlpr=yt_dlpr.__init__:main"
+            "yt=yt_dlpr.__init__:main"
         ]
     }
 )

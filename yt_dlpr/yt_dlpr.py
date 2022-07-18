@@ -42,20 +42,22 @@ with open(config_file, "r+", encoding="utf-8") as f:
     exec(code, n, n)
 
 
+RICH_CONSOLE = Console(
+    highlighter=n.YtDLPHighlighter(),
+    theme=n.YTDLP_THEME,
+    log_time_format=n.RICH_LOG_TIME_FORMAT,
+    log_path=False,
+)
+
+
 class RichYoutubeDL(yt_dlp.YoutubeDL):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.rich_console: Console = Console(
-            highlighter=n.YtDLPHighlighter(),
-            theme=n.YTDLP_THEME,
-            log_time_format=n.RICH_LOG_TIME_FORMAT,
-            log_path=False,
-        )
         self.rich_warning_previous: set = set()
 
+    @staticmethod
     def rich_log(
-        self,
         message: str,
         skip_eol: Union[bool, None],
         quiet: Union[bool, None],
@@ -93,13 +95,13 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
         else:
             message = escape(message)
 
-        self.rich_console.log(
+        RICH_CONSOLE.log(
             message, end="" if skip_eol else "\n", style=message_style
         )
         if n.SPLIT_MULTINE and (
-            len(message + n._log_width_space) > self.rich_console.width
+            len(message + n.log_width_space) > RICH_CONSOLE.width
         ):
-            self.rich_console.print("")
+            RICH_CONSOLE.print("")
 
     def to_screen(
         self,
@@ -125,7 +127,7 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
                 return
             self.rich_warning_previous.add(message)
         warning_style = n.RICH_STYLES["WARNING"]
-        self.rich_console.log(
+        RICH_CONSOLE.log(
             rf"\[[{warning_style}]WARNING[/]] "
             rf"{escape(message)}",
         )
@@ -249,7 +251,7 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
             skip_eol=False,
             quiet=False,
         )
-        self.rich_console.log(table)
+        RICH_CONSOLE.log(table)
 
     def list_thumbnails(self, info_dict: dict) -> None:
         thumbnails = list(info_dict.get("thumbnails") or [])
@@ -287,7 +289,7 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
             skip_eol=False,
             quiet=False,
         )
-        self.rich_console.log(table)
+        RICH_CONSOLE.log(table)
 
     def list_subtitles(
         self, video_id: str, subtitles: dict, name: str = "subtitles"
@@ -329,7 +331,23 @@ class RichYoutubeDL(yt_dlp.YoutubeDL):
             skip_eol=False,
             quiet=False,
         )
-        self.rich_console.log(table)
+        RICH_CONSOLE.log(table)
+        
+    def print_debug_header(self):
+        class DebugHeaderPrinter:
+            @staticmethod
+            def debug(message):
+                self.rich_log(f"[debug] {message[8:]}", skip_eol=False, quiet=False)
+
+        _logger = self.params.get("logger")
+        self.params["logger"] = DebugHeaderPrinter
+        super(RichYoutubeDL, self).print_debug_header()
+        self.params["logger"] = _logger
+
+    def write_debug(self, message, only_once=False):
+        if not self.params.get("verbose", False):
+            return
+        self.rich_log(f"[debug] {message}", skip_eol=False, quiet=False)
 
 
 def _main() -> None:

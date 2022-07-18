@@ -74,28 +74,28 @@ EXTRACTOR_STYLE: Style = Style(underline=True)
 # of `MAX_LEVEL_WIDTH`
 MAX_LEVEL_WIDTH: int = 11
 
-####################################################################################
-#             CONSTANTS FOR PROGRESS TEMPLATE - EDITING NOT RECOMMENDED            #
-_log_width_space = " " * (len(datetime.now().strftime(RICH_LOG_TIME_FORMAT)) + 1)  #
-RESET = "\033[0m"  # Reset graphics mode                                           #
-####################################################################################
+###################################################################################
+#             CONSTANTS FOR PROGRESS TEMPLATE - EDITING NOT RECOMMENDED           #
+log_width_space = " " * (len(datetime.now().strftime(RICH_LOG_TIME_FORMAT)) + 1)  #
+RESET = "\033[0m"  # Reset graphics mode                                          #
+###################################################################################
 
 GREEN_COLOR = "\033[32m"  # ANSI escape code for green
-YELLOW_COLOR = "\033[33m"  # ANSI escape code for green
-MAGENTA_COLOR = "\033[35m"  # ANSI escape code for green
-FINISHED_SPEED = f"{GREEN_COLOR}FINISHED{RESET}"  # Green finished - for speed
-FINISHED_ETA = f"{YELLOW_COLOR}[FINISHED]{RESET} -"  # Yellow finished - for eta
+YELLOW_COLOR = "\033[33m"  # ANSI escape code for yellow
+MAGENTA_COLOR = "\033[35m"  # ANSI escape code for magenta
+FINISHED_SPEED = f"{GREEN_COLOR}FINISHED{RESET}"   # Green finished - for speed
+FINISHED_ETA = f"{YELLOW_COLOR}[FINISHED]{RESET}"  # Yellow finished - for eta
 
 # String for progress bar - check https://github.com/yt-dlp/yt-dlp#output-template for more info
 RICH_YDL_OPTS = {
     "progress_template": {
         "download": (
-            f"{_log_width_space}[{GREEN_COLOR}download{RESET}] "  # Download - prepended by log width to align
+            f"{log_width_space}[{GREEN_COLOR}download{RESET}] "  # Download - prepended by log width to align
             f"%(progress._percent_str)s{RESET} • "  # Percent
             f"{MAGENTA_COLOR}%(progress.downloaded_bytes)#.2DB{RESET}/"  # Bytes downloaded
             f"{MAGENTA_COLOR}%(progress._total_bytes_str)s{RESET} • "  # Total bytes
             f"%(progress._speed_str|{FINISHED_SPEED})s • "  # Speed
-            f"{YELLOW_COLOR}ETA{RESET} %(progress._eta_str|{FINISHED_ETA})s "  # ETA
+            f"{YELLOW_COLOR}ETA{RESET} %(progress._eta_str|{FINISHED_ETA})s • "  # ETA
             f"%(progress._elapsed_str|)s"  # Time elapsed - when download is finished
         ),
         "download-title": "%(info.id)s-%(progress.eta)s",

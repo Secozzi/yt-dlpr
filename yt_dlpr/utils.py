@@ -1,9 +1,11 @@
 import os
 from collections.abc import Iterable
+from math import log
+from pathlib import Path
+
 import appdirs
 import yt_dlp
-from pathlib import Path
-from math import log
+from yt_dlp.utils import load_plugins
 
 
 class dotdict(dict):
@@ -32,6 +34,28 @@ def shorten_protocol_name(proto, simplify=False):
             }
         )
     return short_protocol_names.get(proto, proto)
+
+
+_LAZY_LOADER = False
+if not os.environ.get('YTDLP_NO_LAZY_EXTRACTORS'):
+    try:
+        from .lazy_extractors import *
+        from .lazy_extractors import _ALL_CLASSES
+        _LAZY_LOADER = True
+    except ImportError:
+        pass
+
+if not _LAZY_LOADER:
+    from yt_dlp.extractor.extractors import *
+    _ALL_CLASSES = [
+        klass
+        for name, klass in globals().items()
+        if name.endswith('IE') and name != 'GenericIE'
+    ]
+    _ALL_CLASSES.append(GenericIE)
+
+_PLUGIN_CLASSES = load_plugins('extractor', 'IE', globals())
+_ALL_CLASSES = list(_PLUGIN_CLASSES.values()) + _ALL_CLASSES
 
 
 def float_or_none(v, scale=1, invscale=1, default=None):
